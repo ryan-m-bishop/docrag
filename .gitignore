@@ -75,3 +75,11 @@ test-output/
 # Scraped content (examples)
 /scraped-docs/
 /test-scrape-*/
+
+# Documentation (except README)
+BUILD_COMPLETE.md
+CRAWL4AI_INTEGRATION_COMPLETE.md
+DOCRAG_CRAWL4AI_INTEGRATION.md
+DOCRAG_MVP_BUILD_GUIDE.md
+MCP_SETUP.md
+INSTALLATION_SUMMARY.txt
