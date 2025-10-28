@@ -265,7 +265,12 @@ class Crawl4AIScraper(BaseScraper):
 
                     # Extract and add new links if recursive mode is enabled
                     if self.recursive and pages_scraped < self.max_pages:
+                        # Try structured links first
                         new_links = self._extract_links_from_result(result, url)
+                        # Also parse links from markdown content
+                        markdown_links = self._extract_links_from_markdown(content, url)
+                        new_links.update(markdown_links)
+
                         for link in new_links:
                             if link not in self.visited and link not in self.to_visit:
                                 self.to_visit.add(link)
@@ -358,6 +363,44 @@ class Crawl4AIScraper(BaseScraper):
                     continue
 
         return pages_scraped
+
+    def _extract_links_from_markdown(self, markdown: str, base_url: str) -> Set[str]:
+        """Extract links from markdown content"""
+        import re
+        links = set()
+
+        # Pattern for markdown links: [text](url)
+        markdown_link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        matches = re.findall(markdown_link_pattern, markdown)
+
+        base_parsed = urlparse(base_url)
+
+        for text, href in matches:
+            # Skip anchors and special protocols
+            if href.startswith(('#', 'javascript:', 'mailto:', 'tel:')):
+                continue
+
+            # Parse URL
+            parsed = urlparse(href)
+
+            # Make absolute if relative
+            if not parsed.netloc:
+                href = urljoin(base_url, href)
+                parsed = urlparse(href)
+
+            # Remove fragments
+            href = href.split('#')[0]
+
+            # Filter for same domain documentation links
+            if (
+                parsed.netloc in self.allowed_domains and
+                parsed.scheme in ('http', 'https') and
+                href not in self.visited and
+                not self._is_excluded_path(parsed.path)
+            ):
+                links.add(href)
+
+        return links
 
     def _extract_links_from_result(self, result, base_url: str) -> Set[str]:
         """Extract valid documentation links from crawl result"""
