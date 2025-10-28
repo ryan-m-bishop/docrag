@@ -23,3 +23,10 @@ try:
 except ImportError:
     CRAWL4AI_AVAILABLE = False
     __all__ = ["BaseScraper", "GenericDocScraper", "scrape_url", "CRAWL4AI_AVAILABLE"]
+
+# Import Archbee scraper if available
+try:
+    from .archbee_scraper import discover_archbee_urls
+    __all__.append("discover_archbee_urls")
+except ImportError:
+    pass

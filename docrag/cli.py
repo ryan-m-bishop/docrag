@@ -238,7 +238,8 @@ def search(query: str, collection: str, limit: int):
 @click.argument('url')
 @click.option('--output', '-o', type=click.Path(), help='Output file for URLs (default: urls.txt)')
 @click.option('--max-urls', default=10000, type=int, help='Maximum URLs to discover')
-def discover(url: str, output: str, max_urls: int):
+@click.option('--archbee', is_flag=True, help='Use Playwright-based discovery for Archbee sites')
+def discover(url: str, output: str, max_urls: int, archbee: bool):
     """Discover all documentation URLs on a site without scraping
 
     \b
@@ -249,34 +250,44 @@ def discover(url: str, output: str, max_urls: int):
 
     \b
     Examples:
-      docrag discover https://docs.brightsign.biz
+      docrag discover https://docs.example.com
+      docrag discover https://docs.brightsign.biz --archbee
       docrag discover https://docs.venafi.com --output venafi-urls.txt
     """
-    from docrag.scrapers import CRAWL4AI_AVAILABLE
-
-    if not CRAWL4AI_AVAILABLE:
-        console.print("ERROR: Crawl4AI not installed", style="bold red")
-        console.print("Install with: pipx inject docrag crawl4ai")
-        sys.exit(1)
-
-    from docrag.scrapers.crawl4ai_scraper import Crawl4AIScraper
-    import tempfile
-
     output_file = Path(output) if output else Path('urls.txt')
 
-    console.print(f"\n[bold]Discovering URLs from:[/] [cyan]{url}[/]\n")
+    console.print(f"\n[bold]Discovering URLs from:[/] [cyan]{url}[/]")
+    if archbee:
+        console.print("[yellow]Using Playwright-based Archbee discovery[/]\n")
+    else:
+        console.print("[yellow]Using Crawl4AI sitemap/link discovery[/]\n")
 
     async def run():
-        with tempfile.TemporaryDirectory() as tmpdir:
-            scraper = Crawl4AIScraper(
-                output_dir=Path(tmpdir),
-                max_pages=max_urls,
-                use_sitemap=True,
-                wait_for_js=True
-            )
+        if archbee:
+            # Use Playwright-based Archbee discovery
+            from docrag.scrapers.archbee_scraper import discover_archbee_urls
+            return await discover_archbee_urls(url, max_urls)
+        else:
+            # Use Crawl4AI discovery
+            from docrag.scrapers import CRAWL4AI_AVAILABLE
 
-            urls = await scraper.discover_urls(url)
-            return urls
+            if not CRAWL4AI_AVAILABLE:
+                console.print("ERROR: Crawl4AI not installed", style="bold red")
+                console.print("Install with: pipx inject docrag crawl4ai")
+                sys.exit(1)
+
+            from docrag.scrapers.crawl4ai_scraper import Crawl4AIScraper
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                scraper = Crawl4AIScraper(
+                    output_dir=Path(tmpdir),
+                    max_pages=max_urls,
+                    use_sitemap=True,
+                    wait_for_js=True
+                )
+
+                return await scraper.discover_urls(url)
 
     try:
         with console.status("[cyan]Discovering URLs..."):
