@@ -309,9 +309,10 @@ def discover(url: str, output: str, max_urls: int):
 @click.option('--llm-provider', default='openai/gpt-4o-mini', help='LLM provider for smart scraping')
 @click.option('--no-sitemap', is_flag=True, help='Skip sitemap discovery')
 @click.option('--no-js-wait', is_flag=True, help='Skip waiting for JavaScript')
+@click.option('--recursive', '-r', is_flag=True, help='Follow links recursively (for sites like Archbee)')
 @click.option('--max-pages', default=1000, type=int, help='Maximum pages to scrape')
 def scrape(url: str, output: str, from_file: str, playwright: bool, use_smart: bool,
-           no_llm: bool, llm_provider: str, no_sitemap: bool, no_js_wait: bool, max_pages: int):
+           no_llm: bool, llm_provider: str, no_sitemap: bool, no_js_wait: bool, recursive: bool, max_pages: int):
     """Scrape documentation from a website or URL list
 
     \b
@@ -324,8 +325,12 @@ def scrape(url: str, output: str, from_file: str, playwright: bool, use_smart: b
       docrag scrape --from-file urls.txt --output ./docs --smart
 
     \b
-    For complex JavaScript sites (like BrightSign):
-      docrag scrape https://docs.brightsign.biz --output ./docs --smart --max-pages 500
+    For Archbee/modern sites with nested docs (recursive):
+      docrag scrape https://docs.brightsign.biz --output ./docs --smart --recursive --max-pages 500
+
+    \b
+    For complex JavaScript sites:
+      docrag scrape https://docs.example.com --output ./docs --smart --max-pages 500
     """
     from rich.panel import Panel
     from docrag.scrapers import CRAWL4AI_AVAILABLE
@@ -364,6 +369,8 @@ def scrape(url: str, output: str, from_file: str, playwright: bool, use_smart: b
 
     if use_smart:
         console.print(f"  Method: [green]Smart (Crawl4AI)[/]")
+        if recursive:
+            console.print(f"  Mode: [green]Recursive (follows all links)[/]")
         if not no_sitemap:
             console.print(f"  Sitemap: [green]Enabled[/]")
         if not no_js_wait:
@@ -398,7 +405,8 @@ def scrape(url: str, output: str, from_file: str, playwright: bool, use_smart: b
                     use_llm=not no_llm,
                     llm_provider=llm_provider,
                     use_sitemap=not no_sitemap,
-                    wait_for_js=not no_js_wait
+                    wait_for_js=not no_js_wait,
+                    recursive=recursive
                 )
         else:
             if from_file:
