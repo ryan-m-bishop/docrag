@@ -369,15 +369,15 @@ class Crawl4AIScraper(BaseScraper):
         import re
         links = set()
 
-        # Pattern for markdown links: [text](url)
-        markdown_link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        # Pattern for markdown links: [text](url) or [text](url "title")
+        markdown_link_pattern = r'\[([^\]]+)\]\(([^\s\)"]+)(?:\s+"[^"]*")?\)'
         matches = re.findall(markdown_link_pattern, markdown)
 
         base_parsed = urlparse(base_url)
 
         for text, href in matches:
             # Skip anchors and special protocols
-            if href.startswith(('#', 'javascript:', 'mailto:', 'tel:')):
+            if not href or href.startswith(('#', 'javascript:', 'mailto:', 'tel:')):
                 continue
 
             # Parse URL
@@ -388,8 +388,8 @@ class Crawl4AIScraper(BaseScraper):
                 href = urljoin(base_url, href)
                 parsed = urlparse(href)
 
-            # Remove fragments
-            href = href.split('#')[0]
+            # Remove fragments and clean URL
+            href = href.split('#')[0].split('?')[0]  # Remove query params too
 
             # Filter for same domain documentation links
             if (
