@@ -236,44 +236,117 @@ def search(query: str, collection: str, limit: int):
 
 @main.command()
 @click.argument('url')
+@click.option('--output', '-o', type=click.Path(), help='Output file for URLs (default: urls.txt)')
+@click.option('--max-urls', default=10000, type=int, help='Maximum URLs to discover')
+def discover(url: str, output: str, max_urls: int):
+    """Discover all documentation URLs on a site without scraping
+
+    \b
+    This is useful for:
+    - Seeing what will be scraped before scraping
+    - Creating a filtered URL list
+    - Checking if sitemap exists
+
+    \b
+    Examples:
+      docrag discover https://docs.brightsign.biz
+      docrag discover https://docs.venafi.com --output venafi-urls.txt
+    """
+    from docrag.scrapers import CRAWL4AI_AVAILABLE
+
+    if not CRAWL4AI_AVAILABLE:
+        console.print("ERROR: Crawl4AI not installed", style="bold red")
+        console.print("Install with: pipx inject docrag crawl4ai")
+        sys.exit(1)
+
+    from docrag.scrapers.crawl4ai_scraper import Crawl4AIScraper
+    import tempfile
+
+    output_file = Path(output) if output else Path('urls.txt')
+
+    console.print(f"\n[bold]Discovering URLs from:[/] [cyan]{url}[/]\n")
+
+    async def run():
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scraper = Crawl4AIScraper(
+                output_dir=Path(tmpdir),
+                max_pages=max_urls,
+                use_sitemap=True,
+                wait_for_js=True
+            )
+
+            urls = await scraper.discover_urls(url)
+            return urls
+
+    try:
+        with console.status("[cyan]Discovering URLs..."):
+            urls = asyncio.run(run())
+
+        # Save to file
+        with open(output_file, 'w') as f:
+            for url_item in urls:
+                f.write(f"{url_item}\n")
+
+        console.print(f"\nSUCCESS: Discovered [green]{len(urls)}[/] URLs", style="bold")
+        console.print(f"Saved to: [cyan]{output_file}[/]")
+        console.print(f"\nNext: [yellow]docrag scrape {url} --output ./docs --smart[/]")
+        console.print(f"Or: [yellow]docrag scrape --from-file {output_file} --output ./docs --smart[/]")
+
+    except Exception as e:
+        console.print(f"\nERROR: {e}", style="bold red")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/]")
+        sys.exit(1)
+
+
+@main.command()
+@click.argument('url', required=False)
 @click.option('--output', '-o', type=click.Path(), required=True, help='Output directory')
+@click.option('--from-file', type=click.Path(exists=True), help='Scrape URLs from a file')
 @click.option('--playwright', is_flag=True, help='Use Playwright for dynamic content (basic scraper)')
-@click.option('--smart', '--use-crawl4ai', 'use_smart', is_flag=True, help='Use AI-powered Crawl4AI scraper (recommended)')
-@click.option('--no-llm', is_flag=True, help='Disable LLM extraction in Crawl4AI (faster, less accurate)')
+@click.option('--smart', '--use-crawl4ai', 'use_smart', is_flag=True, help='Use AI-powered Crawl4AI scraper')
+@click.option('--no-llm', is_flag=True, help='Disable LLM extraction in Crawl4AI')
 @click.option('--llm-provider', default='openai/gpt-4o-mini', help='LLM provider for smart scraping')
+@click.option('--no-sitemap', is_flag=True, help='Skip sitemap discovery')
+@click.option('--no-js-wait', is_flag=True, help='Skip waiting for JavaScript')
 @click.option('--max-pages', default=1000, type=int, help='Maximum pages to scrape')
-def scrape(url: str, output: str, playwright: bool, use_smart: bool, no_llm: bool, llm_provider: str, max_pages: int):
-    """Scrape documentation from a website
+def scrape(url: str, output: str, from_file: str, playwright: bool, use_smart: bool,
+           no_llm: bool, llm_provider: str, no_sitemap: bool, no_js_wait: bool, max_pages: int):
+    """Scrape documentation from a website or URL list
 
     \b
-    Basic scraping (fast, generic):
-      docrag scrape https://docs.example.com --output ./docs
-
-    \b
-    Smart scraping with AI (recommended, better quality):
+    Basic usage:
       docrag scrape https://docs.example.com --output ./docs --smart
 
     \b
-    Smart scraping without LLM (faster, still better than basic):
-      docrag scrape https://docs.example.com --output ./docs --smart --no-llm
+    Scrape from URL list:
+      docrag discover https://docs.example.com --output urls.txt
+      docrag scrape --from-file urls.txt --output ./docs --smart
 
     \b
-    For JavaScript-heavy sites (basic scraper):
-      docrag scrape https://example.com --output ./docs --playwright
+    For complex JavaScript sites (like BrightSign):
+      docrag scrape https://docs.brightsign.biz --output ./docs --smart --max-pages 500
     """
     from rich.panel import Panel
     from docrag.scrapers import CRAWL4AI_AVAILABLE
 
+    # Validate arguments
+    if not url and not from_file:
+        console.print("ERROR: Either URL or --from-file must be provided", style="bold red")
+        sys.exit(1)
+
+    if url and from_file:
+        console.print("ERROR: Cannot use both URL and --from-file", style="bold red")
+        sys.exit(1)
+
     output_dir = Path(output)
 
-    # Check if smart scraping is requested but not available
+    # Check smart scraping availability
     if use_smart and not CRAWL4AI_AVAILABLE:
         console.print()
         console.print(Panel.fit(
             "[yellow]WARNING: Crawl4AI not installed[/]\n\n"
             "Smart scraping requires Crawl4AI. Install it with:\n"
-            "  [cyan]pip install crawl4ai[/]\n\n"
-            "Or install DocRAG with smart scraping support:\n"
             "  [cyan]pipx inject docrag crawl4ai[/]\n\n"
             "Falling back to basic scraper...",
             title="Smart Scraping Unavailable",
@@ -283,14 +356,20 @@ def scrape(url: str, output: str, playwright: bool, use_smart: bool, no_llm: boo
 
     console.print()
     console.print(f"[bold]Scraping documentation[/]")
-    console.print(f"  URL: [cyan]{url}[/]")
+    if from_file:
+        console.print(f"  Source: [cyan]URL list from {from_file}[/]")
+    else:
+        console.print(f"  URL: [cyan]{url}[/]")
     console.print(f"  Output: [cyan]{output_dir}[/]")
 
     if use_smart:
         console.print(f"  Method: [green]Smart (Crawl4AI)[/]")
+        if not no_sitemap:
+            console.print(f"  Sitemap: [green]Enabled[/]")
+        if not no_js_wait:
+            console.print(f"  JS Wait: [green]Enabled[/]")
         if not no_llm:
             console.print(f"  LLM: [yellow]{llm_provider}[/]")
-            console.print(f"  [dim]Set OPENAI_API_KEY environment variable[/]")
         else:
             console.print(f"  LLM: [dim]Disabled[/]")
     else:
@@ -301,15 +380,31 @@ def scrape(url: str, output: str, playwright: bool, use_smart: bool, no_llm: boo
 
     async def run():
         if use_smart:
-            from docrag.scrapers.crawl4ai_scraper import scrape_url_smart
-            return await scrape_url_smart(
-                url,
-                output_dir,
-                max_pages=max_pages,
-                use_llm=not no_llm,
-                llm_provider=llm_provider
-            )
+            if from_file:
+                from docrag.scrapers.crawl4ai_scraper import scrape_from_url_list
+                return await scrape_from_url_list(
+                    Path(from_file),
+                    output_dir,
+                    use_llm=not no_llm,
+                    llm_provider=llm_provider,
+                    max_pages=max_pages
+                )
+            else:
+                from docrag.scrapers.crawl4ai_scraper import scrape_url_smart
+                return await scrape_url_smart(
+                    url,
+                    output_dir,
+                    max_pages=max_pages,
+                    use_llm=not no_llm,
+                    llm_provider=llm_provider,
+                    use_sitemap=not no_sitemap,
+                    wait_for_js=not no_js_wait
+                )
         else:
+            if from_file:
+                console.print("ERROR: --from-file requires --smart flag", style="bold red")
+                sys.exit(1)
+
             from docrag.scrapers.generic import scrape_url
             return await scrape_url(url, output_dir, playwright, max_pages)
 
