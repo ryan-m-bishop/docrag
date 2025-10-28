@@ -1,6 +1,6 @@
 # DocRAG - AI Documentation RAG System
 
-A lightweight, installable Python package that provides RAG (Retrieval Augmented Generation) access to technical documentation through an MCP (Model Context Protocol) server. This enables Claude Code to search and retrieve relevant documentation on-demand.
+A lightweight, installable Python package that provides RAG (Retrieval Augmented Generation) access to technical documentation through an MCP (Model Context Protocol) server. This enables LLMs to search and retrieve relevant documentation on-demand.
 
 ## Features
 
