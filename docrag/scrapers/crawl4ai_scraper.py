@@ -115,16 +115,29 @@ class Crawl4AIScraper(BaseScraper):
         return list(discovered)
 
     async def _discover_from_sitemap(self, base_url: str) -> List[str]:
-        """Try to discover URLs from sitemap.xml"""
+        """Try to discover URLs from sitemap.xml, checking multiple possible locations"""
         parsed = urlparse(base_url)
         base = f"{parsed.scheme}://{parsed.netloc}"
 
+        # Common sitemap locations
         sitemap_urls = [
             f"{base}/sitemap.xml",
             f"{base}/sitemap_index.xml",
             f"{base}/docs/sitemap.xml",
             f"{base}/api/sitemap.xml",
         ]
+
+        # For Archbee sites: check for multiple Spaces (each Space has its own sitemap)
+        # Common subdirectories that might have their own sitemaps
+        archbee_common_paths = [
+            'developers', 'api', 'guides', 'docs', 'reference',
+            'tutorials', 'help', 'support', 'knowledge-base'
+        ]
+
+        for path in archbee_common_paths:
+            sitemap_urls.append(f"{base}/{path}/sitemap.xml")
+
+        all_discovered_urls = []
 
         for sitemap_url in sitemap_urls:
             try:
@@ -140,13 +153,12 @@ class Crawl4AIScraper(BaseScraper):
                         # Handle sitemap index (points to other sitemaps)
                         sitemap_locs = soup.find_all('sitemap')
                         if sitemap_locs:
-                            all_urls = []
                             for sitemap_loc in sitemap_locs:
                                 loc = sitemap_loc.find('loc')
                                 if loc:
                                     sub_urls = await self._discover_from_sitemap(loc.text)
-                                    all_urls.extend(sub_urls)
-                            return all_urls
+                                    all_discovered_urls.extend(sub_urls)
+                            continue
 
                         # Handle regular sitemap
                         urls = []
@@ -159,13 +171,14 @@ class Crawl4AIScraper(BaseScraper):
 
                         if urls:
                             logger.info(f"Found sitemap at {sitemap_url} with {len(urls)} URLs")
-                            return urls
+                            all_discovered_urls.extend(urls)
 
             except Exception as e:
                 logger.debug(f"Failed to fetch sitemap {sitemap_url}: {e}")
                 continue
 
-        return []
+        # Return all URLs found across all sitemaps
+        return list(set(all_discovered_urls)) if all_discovered_urls else []
 
     async def scrape(self, start_url: str) -> int:
         """
