@@ -131,7 +131,7 @@ class DocRAGServer:
 
         result = "Available documentation collections:\n\n"
         for coll in collections:
-            status = " active" if coll in active else "Ë inactive"
+            status = "active" if coll in active else "inactive"
             result += f"- {coll} ({status})\n"
 
         return [TextContent(type="text", text=result)]

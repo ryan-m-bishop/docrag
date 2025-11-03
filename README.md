@@ -16,11 +16,12 @@ A lightweight, installable Python package that provides RAG (Retrieval Augmented
 
 - Python 3.10+
 - pipx (recommended) or pip
+- git (for updates)
 
 ### Recommended: Install globally with pipx
 
 ```bash
-# Install globally with pipx (keeps dependencies isolated)
+# Install globally with pipx in editable mode (keeps dependencies isolated)
 pipx install -e /opt/claude-ops/doc-rag
 
 # Verify installation
@@ -30,6 +31,8 @@ docrag --help
 pipx runpip docrag install playwright
 pipx run --spec docrag playwright install chromium
 ```
+
+**Note:** The `-e` flag installs in "editable" mode, which means changes to the source code are immediately reflected without reinstalling.
 
 ### Alternative: Install from source (development)
 
@@ -46,6 +49,57 @@ pip install -e ".[dev]"
 
 # Install Playwright browsers (for scraping)
 playwright install chromium
+```
+
+## Updating DocRAG
+
+### Option 1: Using the Update Script (Recommended)
+
+```bash
+cd /opt/claude-ops/doc-rag
+./update.sh
+```
+
+This script will:
+- Pull latest changes from git
+- Detect your installation method (pipx or pip)
+- Reinstall only if necessary (non-editable installs)
+- Handle editable installs automatically
+
+### Option 2: Using Make
+
+```bash
+cd /opt/claude-ops/doc-rag
+make update
+```
+
+### Option 3: Manual Update
+
+For **editable installs** (installed with `-e`):
+```bash
+cd /opt/claude-ops/doc-rag
+git pull origin main
+# No reinstall needed - changes are already active!
+```
+
+For **regular installs** (installed without `-e`):
+```bash
+cd /opt/claude-ops/doc-rag
+git pull origin main
+pipx uninstall docrag && pipx install -e .
+# or for pip: pip install -e . --force-reinstall
+```
+
+### Verifying Updates
+
+```bash
+# Check git status
+cd /opt/claude-ops/doc-rag
+git log -1 --oneline
+
+# Test the installation
+docrag --version
+docrag --help
 ```
 
 ## Quick Start
