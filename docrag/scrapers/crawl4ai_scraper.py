@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Check if Crawl4AI is available
 try:
-    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, LLMConfig
     from crawl4ai.extraction_strategy import LLMExtractionStrategy
     CRAWL4AI_AVAILABLE = True
 except ImportError:
@@ -211,9 +211,9 @@ class Crawl4AIScraper(BaseScraper):
 
         # Create extraction strategy
         if self.use_llm:
+            llm_config = LLMConfig(provider=self.llm_provider)
             extraction_strategy = LLMExtractionStrategy(
-                provider=self.llm_provider,
-                api_token=None,  # Uses OPENAI_API_KEY env var
+                llm_config=llm_config,
                 instruction=(
                     "Extract only the main technical documentation content. "
                     "Ignore navigation menus, sidebars, footers, advertisements, "
@@ -317,9 +317,9 @@ class Crawl4AIScraper(BaseScraper):
 
         # Create extraction strategy
         if self.use_llm:
+            llm_config = LLMConfig(provider=self.llm_provider)
             extraction_strategy = LLMExtractionStrategy(
-                provider=self.llm_provider,
-                api_token=None,
+                llm_config=llm_config,
                 instruction=(
                     "Extract only the main technical documentation content. "
                     "Ignore navigation menus, sidebars, footers, advertisements. "
